@@ -1,0 +1,28 @@
+# Nexora Node — a single node (the data plane). It is driven by the panel over
+# mutual TLS and has no database of its own; its only state is its certificates.
+#
+#   docker compose up -d
+#
+# Before the first start, put the panel's client certificate at ./certs/panel_ca.pem.
+# The panel offers it on the node install page. The node generates its own server
+# certificate on first boot, and the panel pins it on first connection.
+services:
+  node:
+    image: ghcr.io/nexora-vpn/node:latest
+    restart: unless-stopped
+    container_name: nexora-node
+    environment:
+      NEXORA_NODE_LISTEN: "0.0.0.0:62050"
+      NEXORA_NODE_CERT: /app/certs/ssl_cert.pem
+      NEXORA_NODE_KEY: /app/certs/ssl_key.pem
+      NEXORA_NODE_CLIENT_CA: /app/certs/panel_ca.pem
+    volumes:
+      - ./certs:/app/certs
+    # A node terminates client traffic on whatever ports its inbounds use, and
+    # those are chosen in the panel — so a bridged network cannot know them in
+    # advance. Host networking keeps every inbound reachable without editing this
+    # file each time one is added.
+    network_mode: host
+    # Needed by the TUN inbound and by any inbound that binds a privileged port.
+    cap_add:
+      - NET_ADMIN
