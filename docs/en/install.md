@@ -78,6 +78,56 @@ Client-facing ports are a separate matter. They are whatever the inbounds
 assigned to this node use, so they are chosen in the panel — open them here after
 you have assigned the template, not before.
 
+## Panel and node on the same server
+
+**Not recommended.** It works, and nothing in Nexora forbids it — but read why
+you probably do not want it before you do it.
+
+The two do not collide. The panel listens on 2095 and the node on 62050; they
+install into `/opt/nexora-panel` and `/opt/nexora-node`, run as separate systemd
+services, and share only the parent of their state directories —
+`/var/opt/nexora/nexora.db` and `/var/opt/nexora/bin/` are the panel's,
+`/var/opt/nexora/certs/` is the node's.
+
+To do it, run the panel's one-line install command on the panel server itself,
+and bind the control API to loopback, since the panel is already there:
+
+```bash
+curl -fsSL https://PANEL/install-node.sh | bash -s -- \
+  --panel PANEL --token TOKEN --listen 127.0.0.1:62050
+```
+
+Then add the node in the panel with the address `127.0.0.1`. Port 62050 never
+leaves the machine, so skip the `ufw` rule above entirely.
+
+In Docker, the panel repository ships this arrangement as a ready stack:
+[`docker/panel-and-node`](https://github.com/nexora-vpn/panel/tree/main/docker/panel-and-node).
+
+### Why it is not recommended
+
+- **It publishes the panel's address.** A node's IP goes into every subscription
+  link and every client config you hand out. Co-locating means every user — and
+  anyone who collects those configs — learns where your panel lives. If that
+  address is later filtered or blacklisted for carrying proxy traffic, you lose
+  the panel and every subscription URL with it, not just one node.
+- **One machine, one fate.** Client traffic is bursty and unbounded: it eats
+  CPU, memory, file descriptors and bandwidth. A node under load takes the panel
+  down with it — and a panel that is down takes the subscriptions of *every*
+  other node's users down too.
+- **It fuses the disposable with the irreplaceable.** A node is meant to be
+  thrown away and re-registered; the panel's database is the one thing in the
+  whole fleet worth backing up. On a shared server, reinstalling the node means
+  working on top of that database.
+- **The uninstall is a footgun.** `rm -rf /var/opt/nexora` in the uninstall
+  section below deletes the panel's database. On a shared server remove only
+  `/opt/nexora-node` and `/var/opt/nexora/certs`.
+- **It still costs a node.** A co-located node counts against your licence's
+  node cap exactly like any other.
+
+It is a reasonable choice for a lab, a demo, or a small single-server deployment
+where you accept that the panel and the proxy share one address and one fate.
+For anything you would be upset to lose, give the panel its own server.
+
 ## Manual install
 
 For an air-gapped server, a host without systemd, or a panel you would rather not
@@ -167,6 +217,10 @@ rm -f /etc/systemd/system/nexora-node.service
 systemctl daemon-reload
 rm -rf /opt/nexora-node /var/opt/nexora
 ```
+
+If the panel is installed on this same server, do **not** remove
+`/var/opt/nexora` — that is where its database lives. Remove
+`/var/opt/nexora/certs` instead.
 
 Delete the node in the panel too, or it will keep being counted against your
 licence and keep showing as offline.

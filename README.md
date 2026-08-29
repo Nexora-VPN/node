@@ -55,6 +55,18 @@ ufw allow from PANEL_IP to any port 62050 proto tcp
 Client traffic arrives on whatever ports the inbounds assigned to this node use.
 Those are chosen in the panel, so open them there first and here second.
 
+## Panel and node on the same server
+
+It works — separate binaries, separate services, separate ports (2095 and
+62050), no path collision — and it is **not recommended**. A node's address ends
+up in every subscription link and every client config, so co-locating publishes
+your panel's address to everyone you hand a config to; and a node saturating the
+box takes the panel, and with it every other node's subscriptions, down too.
+Install it with `--listen 127.0.0.1:62050` and add it in the panel as
+`127.0.0.1` if you do it anyway — the [install guide](docs/en/install.md#panel-and-node-on-the-same-server)
+has the full caveats, including the uninstall command that would delete the
+panel's database.
+
 ## Docker
 
 ```bash
