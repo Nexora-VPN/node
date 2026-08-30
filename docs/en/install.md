@@ -13,10 +13,12 @@ cannot reach.
 
 ## Requirements
 
-- A Linux server with systemd. amd64, arm64, armv5/v6/v7, 386, s390x and riscv64
-  are all published.
-- Root access.
-- Outbound access to the panel, and TCP **62050** reachable *from the panel*.
+- A Linux server with systemd — or with Docker, which the installer will use
+  instead. amd64, arm64, armv5/v6/v7, 386, s390x and riscv64 are all published.
+- Root, or a user with sudo.
+- TCP **62050** reachable *from the panel*. Outbound access to the panel is
+  needed by the one-line command below, but not by the automatic install, which
+  pushes everything down its own SSH connection.
 - Whatever ports the inbounds you assign to this node will listen on.
 
 A node does not need a licence key of its own. The panel's licence caps how many
@@ -51,7 +53,16 @@ Options you can add to the command:
 | Flag | Effect |
 | --- | --- |
 | `--listen ADDR` | bind the control API somewhere other than `0.0.0.0:62050` |
+| `--method script\|docker` | deploy as a systemd service or a container (default: whatever is already there) |
+| `--source panel\|github` | take the binary from the panel or from a public release |
+| `--version TAG` | install a specific release (implies `--source github`) |
+| `--image REF` | the container image for `--method docker` |
 | `--binary-url URL` | take the binary from somewhere other than the panel |
+| `--binary-file PATH` | use a binary already on this server |
+| `--ca-file PATH` | use a panel certificate already on this server, instead of a token |
+| `--insecure` | do not verify the panel's TLS certificate while downloading |
+| `--detect` | print what is on this server and exit, changing nothing |
+| `--uninstall` | stop and remove the node |
 
 If the panel has no binary staged for this server's architecture, the install
 fails at step 1 with `node binary not provisioned`. Stage it on the **panel**
@@ -64,6 +75,73 @@ curl -fsSL -o /tmp/node.tar.gz \
 tar -C /tmp -xzf /tmp/node.tar.gz
 install -m 0755 /tmp/nexora-node/nexora-node /var/opt/nexora/bin/nexora-node-linux-armv7
 ```
+
+## The automatic install
+
+The panel can do all of the above for you over SSH. In the node's install
+drawer — or at the bottom of the add-node dialog — switch to **Automatic (SSH)**,
+give the panel a login for the server, and press **Detect**.
+
+It reports what the server is (distribution, architecture, whether it has systemd
+or Docker) and what is already on it, then shows the plan: which deployment it
+will use and which version it will land on. Press **Install** and the output
+streams back live.
+
+It differs from the command above in one way that matters: it **uploads**. The
+installer, the panel's client certificate and — by default — the node binary all
+go down the SSH connection. The server needs no route to the panel, no route to
+GitHub and no trust in the panel's TLS certificate. Nothing is fetched, so no
+install token is involved either.
+
+Run it again later and it updates in place, keeping `config.json` and the node's
+own certificate, so the panel's pin still matches and nothing is re-registered.
+
+### Credentials
+
+Nothing is stored by default. The password is used for that one connection and
+dropped.
+
+Tick **Authorise the panel's key on this server** and the panel appends its own
+public key to the login user's `authorized_keys`, then proves it works by opening
+a second connection with it. After that, updates need no password at all. It is a
+persistent grant of whatever that user can do — revoke it from the node's menu
+(**Revoke panel key**), or by deleting the `nexora-panel-…` line from
+`~/.ssh/authorized_keys` yourself.
+
+The login user does not have to be root. A user with sudo works; the panel
+escalates with the password you gave it.
+
+The first connection pins the server's SSH host key, the same way the panel pins
+a node's TLS certificate. If the server later presents a different key the panel
+refuses to connect and says so, rather than carrying on — either the machine was
+replaced, or something is between you and it.
+
+### Moving a node to another server
+
+Use **Move to another server** in the node's menu rather than editing its
+address. Three things are pinned to the machine a node used to run on: the TLS
+certificate pin, the SSH host key, and what the panel remembers about how the
+node was deployed. Carried over to a new server, the first refuses every
+connection, the second refuses every login, and the third has the installer
+planning a Docker update for a host that may have no Docker. Moving clears all
+three, then you install on the new server as if it were new — because it is.
+
+### Deployment and version
+
+Both are picked for you and both can be overridden.
+
+The deployment defaults to whatever the server already runs, so an update never
+silently changes a node from a container to a service or back. On a fresh server
+it takes systemd if there is systemd, Docker otherwise. Choosing the other one
+explicitly is supported: the installer removes the old deployment first, so the
+two never fight over port 62050.
+
+The version defaults to the node binary staged on your panel — the one the panel
+installer downloaded alongside itself. Ask for a specific release instead and the
+server downloads it from GitHub, which is also what happens automatically for an
+architecture your panel has nothing staged for (it stages amd64 and arm64; armv7,
+386, s390x and riscv64 come from the release). A Docker install pulls the
+matching image tag.
 
 ## Firewall
 
@@ -193,10 +271,20 @@ compose file and recreating the container.
 
 ## Updating
 
-Nodes are updated from the panel, which pushes the new binary and restarts the
-service. Nothing needs to be run on the node itself.
+Nodes are updated from the panel: open the node's install drawer, switch to
+**Automatic (SSH)**, and press **Update**. The panel uploads the new binary (or
+pulls the new image), replaces the running one and restarts it. Nothing needs to
+be typed on the node itself.
 
-By hand, replace the binary and restart:
+The manual command updates in place too — run it again on a server that already
+has a node and it detects the existing install, keeps its `config.json` and
+certificates, and swaps only the binary:
+
+```bash
+curl -fsSL https://PANEL/install-node.sh | bash -s -- --panel PANEL --token TOKEN
+```
+
+Or replace the binary yourself and restart:
 
 ```bash
 systemctl stop nexora-node
