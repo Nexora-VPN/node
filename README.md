@@ -44,13 +44,20 @@ no staged binary for, see the manual install:
 
 ## Firewall
 
-A node listens for the panel on TCP **62050**. That port speaks mTLS and accepts
-the panel's client certificate and nothing else, but there is no reason to leave
-it open to the internet — restrict it to the panel's address:
+A node listens for the panel on TCP **62050**, on IPv4 and IPv6 both (it binds
+`[::]`, which serves v4 too, and falls back to `0.0.0.0` on a host with IPv6
+switched off). That port speaks mTLS and accepts the panel's client certificate
+and nothing else, but there is no reason to leave it open to the internet —
+restrict it to the panel's address:
 
 ```bash
 ufw allow from PANEL_IP to any port 62050 proto tcp
+ufw allow from 2001:db8::1 to any port 62050 proto tcp   # if the panel arrives over IPv6
 ```
+
+A server with only an IPv6 address needs nothing special: add it in the panel as
+`2001:db8::1` (brackets optional) and the panel brackets it wherever a link or a
+client profile needs it.
 
 Client traffic arrives on whatever ports the inbounds assigned to this node use.
 Those are chosen in the panel, so open them there first and here second.

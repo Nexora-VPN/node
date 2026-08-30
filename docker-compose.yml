@@ -12,7 +12,11 @@ services:
     restart: unless-stopped
     container_name: nexora-node
     environment:
-      NEXORA_NODE_LISTEN: "0.0.0.0:62050"
+      # The IPv6 wildcard, which on a dual-stack host accepts IPv4 too. 0.0.0.0
+      # would leave the node unreachable from a panel that only has IPv6; a host
+      # with IPv6 switched off cannot bind it, and the node falls back to
+      # 0.0.0.0 by itself there.
+      NEXORA_NODE_LISTEN: "[::]:62050"
       NEXORA_NODE_CERT: /app/certs/ssl_cert.pem
       NEXORA_NODE_KEY: /app/certs/ssl_key.pem
       NEXORA_NODE_CLIENT_CA: /app/certs/panel_ca.pem

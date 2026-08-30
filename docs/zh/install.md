@@ -13,7 +13,8 @@
 - 一台带 systemd 的 Linux 服务器。amd64、arm64、armv5/v6/v7、386、s390x 和
   riscv64 均有发布。
 - root 权限。
-- 能够访问面板，并且 TCP **62050** 端口*从面板一侧*可达。
+- 能够访问面板，并且 TCP **62050** 端口*从面板一侧*可达，IPv4 或 IPv6 均可——节点
+  两者都监听。
 - 分配给该节点的入站所使用的各个端口。
 
 节点不需要自己的许可证密钥。面板的许可证决定它能驱动多少个节点。
@@ -42,7 +43,7 @@ curl -fsSL https://PANEL/install-node.sh | bash -s -- --panel PANEL --token TOKE
 
 | 参数 | 作用 |
 | --- | --- |
-| `--listen ADDR` | 把控制 API 绑定到 `0.0.0.0:62050` 以外的地址 |
+| `--listen ADDR` | 把控制 API 绑定到 `[::]:62050`（IPv6 通配地址，同时也服务 IPv4）以外的地址 |
 | `--binary-url URL` | 从面板以外的位置获取二进制文件 |
 
 如果面板没有为该服务器的架构准备好二进制文件，安装会在第 1 步以
@@ -117,8 +118,38 @@ install -m 0755 /tmp/nexora-node/nexora-node /var/opt/nexora/bin/nexora-node-lin
 ufw allow from PANEL_IP to any port 62050 proto tcp
 ```
 
+如果面板是通过 IPv6 访问这个节点的，规则必须写上连接实际来自的那个地址——v4 的规
+则并不覆盖 v6 的连接：
+
+```bash
+ufw allow from 2001:db8::1 to any port 62050 proto tcp
+```
+
 面向客户端的端口是另一回事。它们是分配给该节点的入站所使用的端口，因此在面板中选
 定——请在分配模板之后再开放它们，而不是之前。
+
+## 通过 IPv6 访问的节点
+
+两边都不需要任何特殊设置。节点默认绑定 `[::]:62050`，在双栈主机上同样接受 IPv4
+连接——所以无论面板走 v4、v6 还是两者兼有，同一套安装都能用。在完全关闭了 IPv6 的
+主机上，节点无法绑定该地址，会自行回退到 `0.0.0.0:62050`，而那正是这类主机想要的。
+
+**只有** IPv6 地址的服务器同样不需要额外操作。在面板中直接按原样填写它的地址：
+
+```
+2001:db8::1
+```
+
+方括号也可以接受，会被去掉——`[2001:db8::1]` 和 `2001:db8::1` 是同一个节点。面板
+会在语法需要的地方把方括号加回去，在不需要的地方则不加：分享链接形如
+`vless://…@[2001:db8::1]:443?…`，wireguard 配置形如
+`Endpoint = [2001:db8::1]:51820`；而 clash、sing-box 的配置以及 OpenVPN 的
+`remote` 行携带的是不带方括号的地址。**公开地址**（当它与面板连接所用的地址不同
+时，写进链接里的那个地址）以及自动安装的 SSH 主机也遵循同样的规则。
+
+有一点 IPv6 并不会改变：如果入站启用了 TLS 而没有设置 SNI，客户端会用地址本身来
+校验证书，因此该地址必须在证书上。请像对待 IPv4 一样，把 IPv6 地址放进 SAN 列表
+重新签发节点证书。
 
 ## 面板与节点部署在同一台服务器
 
@@ -195,7 +226,7 @@ install -m 0755 /tmp/nexora-node/nexora-node /opt/nexora-node/nexora-node
 ```bash
 cat > /opt/nexora-node/config.json <<'JSON'
 {
-  "listen": "0.0.0.0:62050",
+  "listen": "[::]:62050",
   "cert_file": "/var/opt/nexora/certs/ssl_cert.pem",
   "key_file": "/var/opt/nexora/certs/ssl_key.pem",
   "client_ca_file": "/var/opt/nexora/certs/panel_ca.pem"
@@ -290,9 +321,13 @@ rm -rf /opt/nexora-node /var/opt/nexora
 systemctl status nexora-node          # 在节点上
 journalctl -u nexora-node -n 50       # 在节点上
 nc -vz NODE_IP 62050                  # 从面板服务器
+nc -vz -6 2001:db8::1 62050           # ……如果面板通过 IPv6 访问
 ```
 
-最常见的原因是防火墙规则没有包含面板的地址；其次是云服务商的安全组。
+最常见的原因是防火墙规则没有包含面板的地址；其次是云服务商的安全组。如果节点是通
+过 IPv6 访问的，请确认防火墙规则是 v6 规则——v4 规则并不覆盖它——并确认
+`ss -lnt | grep 62050` 显示节点监听在 `[::]` 而不是 `0.0.0.0`；后者说明主机上的
+IPv6 已被关闭，节点做了回退。
 
 **节点被重装后面板拒绝它。** 重装会生成新的服务端证书，而面板仍固定着旧的那一份。
 在面板中删除该节点再重新添加——指纹会在下一次首连时重新取得。

@@ -16,9 +16,10 @@ cannot reach.
 - A Linux server with systemd — or with Docker, which the installer will use
   instead. amd64, arm64, armv5/v6/v7, 386, s390x and riscv64 are all published.
 - Root, or a user with sudo.
-- TCP **62050** reachable *from the panel*. Outbound access to the panel is
-  needed by the one-line command below, but not by the automatic install, which
-  pushes everything down its own SSH connection.
+- TCP **62050** reachable *from the panel*, over IPv4 or IPv6 — a node listens
+  on both. Outbound access to the panel is needed by the one-line command below,
+  but not by the automatic install, which pushes everything down its own SSH
+  connection.
 - Whatever ports the inbounds you assign to this node will listen on.
 
 A node does not need a licence key of its own. The panel's licence caps how many
@@ -52,7 +53,7 @@ Options you can add to the command:
 
 | Flag | Effect |
 | --- | --- |
-| `--listen ADDR` | bind the control API somewhere other than `0.0.0.0:62050` |
+| `--listen ADDR` | bind the control API somewhere other than `[::]:62050` (the IPv6 wildcard, which serves IPv4 too) |
 | `--method script\|docker` | deploy as a systemd service or a container (default: whatever is already there) |
 | `--source panel\|github` | take the binary from the panel or from a public release |
 | `--version TAG` | install a specific release (implies `--source github`) |
@@ -152,9 +153,45 @@ to advertise it:
 ufw allow from PANEL_IP to any port 62050 proto tcp
 ```
 
+If the panel reaches this node over IPv6, the rule has to name the address it
+actually arrives from — a v4 rule does not cover a v6 connection:
+
+```bash
+ufw allow from 2001:db8::1 to any port 62050 proto tcp
+```
+
 Client-facing ports are a separate matter. They are whatever the inbounds
 assigned to this node use, so they are chosen in the panel — open them here after
 you have assigned the template, not before.
+
+## A node reached over IPv6
+
+Nothing special is required, on either side. The node binds `[::]:62050` by
+default, which on a dual-stack host accepts IPv4 connections as well — so the
+same install works whether the panel reaches it over v4, v6, or both. On a host
+with IPv6 switched off entirely the node cannot bind that address and falls back
+to `0.0.0.0:62050` on its own, which is what that host meant anyway.
+
+A server with **only** an IPv6 address needs nothing extra either. Add it in the
+panel with its address written plainly:
+
+```
+2001:db8::1
+```
+
+Brackets are accepted and stripped — `[2001:db8::1]` and `2001:db8::1` are the
+same node. The panel puts them back where the syntax needs them and leaves them
+off where it does not: a share link comes out as
+`vless://…@[2001:db8::1]:443?…`, a wireguard profile as
+`Endpoint = [2001:db8::1]:51820`, while a clash or sing-box config and an
+OpenVPN `remote` line carry the bare address. The same goes for **Public
+address** (the address published in links, when it differs from the one the
+panel connects to) and for the SSH host of an automatic install.
+
+One thing IPv6 does not change: if an inbound uses TLS with no SNI set, the
+client validates the certificate against the address, so that address has to be
+on the certificate. Reissue the node's certificate with the IPv6 address in its
+SAN list, exactly as you would with an IPv4 one.
 
 ## Panel and node on the same server
 
@@ -238,7 +275,7 @@ panel.
 ```bash
 cat > /opt/nexora-node/config.json <<'JSON'
 {
-  "listen": "0.0.0.0:62050",
+  "listen": "[::]:62050",
   "cert_file": "/var/opt/nexora/certs/ssl_cert.pem",
   "key_file": "/var/opt/nexora/certs/ssl_key.pem",
   "client_ca_file": "/var/opt/nexora/certs/panel_ca.pem"
@@ -344,10 +381,14 @@ dropping the connection. Check, in order:
 systemctl status nexora-node          # on the node
 journalctl -u nexora-node -n 50       # on the node
 nc -vz NODE_IP 62050                  # from the panel server
+nc -vz -6 2001:db8::1 62050           # …if the panel reaches it over IPv6
 ```
 
 A firewall rule that does not include the panel's address is the usual cause; a
-cloud provider security group is the second.
+cloud provider security group is the second. If the node is reached over IPv6,
+check that the firewall rule is a v6 rule — a v4 one does not cover it — and that
+`ss -lnt | grep 62050` shows the node on `[::]` rather than `0.0.0.0`, which
+means IPv6 is switched off on the host and the node fell back.
 
 **The node was reinstalled and the panel refuses it.** A reinstall generates a
 new server certificate, and the panel is still pinning the old one. Delete the
