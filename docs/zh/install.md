@@ -159,7 +159,7 @@ ufw allow from 2001:db8::1 to any port 62050 proto tcp
 两者并不冲突。面板监听 2095，节点监听 62050；它们分别安装到 `/opt/nexora-panel`
 和 `/opt/nexora-node`，作为各自独立的 systemd 服务运行，只共用状态目录的上级路
 径——`/var/opt/nexora/nexora.db` 和 `/var/opt/nexora/bin/` 属于面板，
-`/var/opt/nexora/certs/` 属于节点。
+`/var/opt/nexora/certs/` 和 `/var/opt/nexora/cache/` 属于节点。
 
 如果要这么做，就在面板服务器上执行面板给出的那条一行安装命令，并把控制 API 绑定
 到回环地址——反正面板就在本机：
@@ -188,7 +188,8 @@ curl -fsSL https://PANEL/install-node.sh | bash -s -- \
   的；面板的数据库才是整个集群里唯一值得备份的东西。在共用服务器上重装节点，就是
   在这份数据库之上动手。
 - **卸载是个坑。** 下面「卸载」一节里的 `rm -rf /var/opt/nexora` 会删掉面板的数据
-  库。在共用服务器上只删除 `/opt/nexora-node` 和 `/var/opt/nexora/certs`。
+  库。在共用服务器上只删除 `/opt/nexora-node`、`/var/opt/nexora/certs` 和
+  `/var/opt/nexora/cache`。
 - **它照样占用一个节点名额。** 与面板同机的节点，和其他节点一样计入你许可证的节
   点上限。
 
@@ -289,7 +290,7 @@ rm -rf /opt/nexora-node /var/opt/nexora
 ```
 
 如果面板也装在这台服务器上，**不要**删除 `/var/opt/nexora`——面板的数据库就在那
-里。改为只删除 `/var/opt/nexora/certs`。
+里。改为只删除 `/var/opt/nexora/certs` 和 `/var/opt/nexora/cache`。
 
 也请在面板中删除该节点，否则它会继续占用许可证名额，并一直显示为离线。
 
@@ -302,10 +303,12 @@ rm -rf /opt/nexora-node /var/opt/nexora
 | `/var/opt/nexora/certs/ssl_cert.pem` | 节点自己的服务端证书 |
 | `/var/opt/nexora/certs/ssl_key.pem` | 其私钥 |
 | `/var/opt/nexora/certs/panel_ca.pem` | 面板的客户端证书，也是唯一被接受的证书 |
+| `/var/opt/nexora/cache/` | 面板下发的规则集和 masque 的 WARP 配置——随时可以删除，缺少的部分面板会重新下发 |
 | `/etc/systemd/system/nexora-node.service` | 服务 unit |
 
-其余的一切——入站、出站、端点、路由、用户——都由面板下发并保存在内存中。磁盘上没有
-别的东西需要备份。
+其余的一切——入站、出站、端点、路由、用户——都由面板下发并保存在内存中，重启后不会
+保留：重启后的节点在面板重新下发（几秒内）之前不提供任何服务。磁盘上只有证书值得
+备份。
 
 ## 排查
 

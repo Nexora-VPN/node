@@ -202,7 +202,7 @@ The two do not collide. The panel listens on 2095 and the node on 62050; they
 install into `/opt/nexora-panel` and `/opt/nexora-node`, run as separate systemd
 services, and share only the parent of their state directories —
 `/var/opt/nexora/nexora.db` and `/var/opt/nexora/bin/` are the panel's,
-`/var/opt/nexora/certs/` is the node's.
+`/var/opt/nexora/certs/` and `/var/opt/nexora/cache/` are the node's.
 
 To do it, run the panel's one-line install command on the panel server itself,
 and bind the control API to loopback, since the panel is already there:
@@ -235,7 +235,7 @@ In Docker, the panel repository ships this arrangement as a ready stack:
   working on top of that database.
 - **The uninstall is a footgun.** `rm -rf /var/opt/nexora` in the uninstall
   section below deletes the panel's database. On a shared server remove only
-  `/opt/nexora-node` and `/var/opt/nexora/certs`.
+  `/opt/nexora-node`, `/var/opt/nexora/certs` and `/var/opt/nexora/cache`.
 - **It still costs a node.** A co-located node counts against your licence's
   node cap exactly like any other.
 
@@ -345,7 +345,7 @@ rm -rf /opt/nexora-node /var/opt/nexora
 
 If the panel is installed on this same server, do **not** remove
 `/var/opt/nexora` — that is where its database lives. Remove
-`/var/opt/nexora/certs` instead.
+`/var/opt/nexora/certs` and `/var/opt/nexora/cache` instead.
 
 Delete the node in the panel too, or it will keep being counted against your
 licence and keep showing as offline.
@@ -359,10 +359,13 @@ licence and keep showing as offline.
 | `/var/opt/nexora/certs/ssl_cert.pem` | the node's own server certificate |
 | `/var/opt/nexora/certs/ssl_key.pem` | its private key |
 | `/var/opt/nexora/certs/panel_ca.pem` | the panel's client certificate, which is the only one accepted |
+| `/var/opt/nexora/cache/` | rule sets the panel pushed and masque's WARP profile — safe to delete at any time; the panel pushes again what is missing |
 | `/etc/systemd/system/nexora-node.service` | the service unit |
 
 Everything else — inbounds, outbounds, endpoints, routing, users — is pushed by
-the panel and held in memory. There is nothing else on disk to back up.
+the panel and held in memory, and is not kept across a restart: a restarted
+node serves nothing until the panel pushes again, which it does within seconds.
+The certificates are the only thing on disk worth backing up.
 
 ## Troubleshooting
 

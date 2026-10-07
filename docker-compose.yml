@@ -1,5 +1,7 @@
 # Nexora Node — a single node (the data plane). It is driven by the panel over
-# mutual TLS and has no database of its own; its only state is its certificates.
+# mutual TLS and has no database of its own. It keeps its certificates in
+# ./certs and, in ./cache, only what it can fetch again (rule sets the panel
+# pushed, masque's WARP profile) — ./cache is safe to delete at any time.
 #
 #   docker compose up -d
 #
@@ -22,6 +24,7 @@ services:
       NEXORA_NODE_CLIENT_CA: /app/certs/panel_ca.pem
     volumes:
       - ./certs:/app/certs
+      - ./cache:/app/cache
     # A node terminates client traffic on whatever ports its inbounds use, and
     # those are chosen in the panel — so a bridged network cannot know them in
     # advance. Host networking keeps every inbound reachable without editing this
