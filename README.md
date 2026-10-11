@@ -37,10 +37,10 @@ installer stages them under `/var/opt/nexora/bin/` at install time.
 For an air-gapped server, a non-systemd host, or an architecture your panel has
 no staged binary for, see the manual install:
 
-- [English](docs/en/install.md)
-- [فارسی](docs/fa/install.md)
-- [Русский](docs/ru/install.md)
-- [中文](docs/zh/install.md)
+- [English](https://docs.nexora-panel.org/start/add-node)
+- [فارسی](https://docs.nexora-panel.org/fa/start/add-node)
+- [Русский](https://docs.nexora-panel.org/ru/start/add-node)
+- [中文](https://docs.nexora-panel.org/zh/start/add-node)
 
 ## Firewall
 
@@ -70,7 +70,7 @@ up in every subscription link and every client config, so co-locating publishes
 your panel's address to everyone you hand a config to; and a node saturating the
 box takes the panel, and with it every other node's subscriptions, down too.
 Install it with `--listen 127.0.0.1:62050` and add it in the panel as
-`127.0.0.1` if you do it anyway — the [install guide](docs/en/install.md#panel-and-node-on-the-same-server)
+`127.0.0.1` if you do it anyway — the [install guide](https://docs.nexora-panel.org/start/same-server)
 has the full caveats, including the uninstall command that would delete the
 panel's database.
 
