@@ -22,7 +22,7 @@ Nodes are not installed from here. Register the node in your panel and it hands
 you a one-line command to run on the new server:
 
 ```bash
-curl -fsSL https://PANEL/install-node.sh | bash -s -- --panel PANEL --token TOKEN
+curl -fsSL https://PANEL/install-node.sh | bash -s -- --panel PANEL --token TOKEN --port 62050
 ```
 
 That command carries a **single-use install token**. Running it downloads the
